@@ -1,0 +1,134 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<title>Festa di laurea 📸</title>
+<style>
+  :root { --bg:#faf6f0; --ink:#2b2420; --accent:#b5442b; --muted:#8a7d72; --card:#fff; --line:#ddd2c6; }
+  * { box-sizing:border-box; }
+  body { margin:0; font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif;
+         background:var(--bg); color:var(--ink); min-height:100vh; display:flex; justify-content:center; }
+  main { width:100%; max-width:440px; padding:36px 20px 48px; text-align:center; }
+  .icon { font-size:46px; }
+  h1 { font-family:Georgia,"Times New Roman",serif; font-weight:normal; font-size:32px; margin:6px 0 6px; }
+  .sub { color:var(--muted); margin:0 0 28px; font-size:15px; line-height:1.45; }
+  input[type=text] { width:100%; padding:14px 16px; border:1px solid var(--line); border-radius:12px;
+                     font-size:16px; background:var(--card); margin-bottom:16px; color:var(--ink); }
+  .btn { display:block; width:100%; padding:18px; border-radius:14px; font-size:17px; font-weight:600;
+         margin-bottom:12px; cursor:pointer; user-select:none; -webkit-tap-highlight-color:transparent; }
+  .primary { background:var(--accent); color:#fff; }
+  .secondary { background:var(--card); color:var(--ink); border:1px solid var(--line); }
+  .btn:active { transform:scale(.98); }
+  .hidden { display:none; }
+  #status { margin-top:22px; font-size:15px; min-height:22px; line-height:1.4; }
+  .bar { height:6px; background:#eadfd3; border-radius:3px; overflow:hidden; margin-top:10px; }
+  .bar > div { height:100%; width:0; background:var(--accent); transition:width .3s; }
+  .count { margin-top:30px; color:var(--muted); font-size:14px; }
+</style>
+</head>
+<body>
+<main>
+  <div class="icon">📸</div>
+  <h1>Festa di laurea</h1>
+  <p class="sub">Scatta e carica le tue foto: finiscono tutte nell'album della festa.<br>Le vedremo insieme dopo!</p>
+
+  <input type="text" id="guest" placeholder="Il tuo nome (facoltativo)" maxlength="30" autocomplete="given-name">
+
+  <label class="btn primary" for="cam">Scatta una foto</label>
+  <input class="hidden" type="file" id="cam" accept="image/*" capture="environment">
+
+  <label class="btn secondary" for="gal">Carica dalla galleria</label>
+  <input class="hidden" type="file" id="gal" accept="image/*,video/*" multiple>
+
+  <div id="status"></div>
+  <div class="bar hidden" id="bar"><div id="fill"></div></div>
+  <div class="count" id="count"></div>
+</main>
+
+<script>
+  const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwVyoclhGCln1D1F1eE5To9iPLRSzWK1JO9i1w3Q2JxFsq6dXORlvXsWf0o88-BpscD5Q/exec';
+  const MAX_MB = 30;            // limite per singolo file (video lunghi esclusi)
+  const guestEl = document.getElementById('guest');
+  const statusEl = document.getElementById('status');
+  const bar = document.getElementById('bar');
+  const fill = document.getElementById('fill');
+  const countEl = document.getElementById('count');
+
+  function load(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } }
+  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
+
+  guestEl.value = load('guest', '');
+  guestEl.addEventListener('input', () => store('guest', guestEl.value));
+
+  let sent = +load('sent', 0) || 0;
+  function showCount() { countEl.textContent = sent ? 'Hai condiviso ' + sent + (sent === 1 ? ' foto' : ' foto') + ' 💛' : ''; }
+  showCount();
+
+  const queue = [];
+  let busy = false, total = 0, done = 0, failed = 0, lastError = '';
+
+  function setStatus(t) { statusEl.textContent = t; }
+
+  ['cam', 'gal'].forEach(id => {
+    document.getElementById(id).addEventListener('change', e => {
+      const files = Array.from(e.target.files || []);
+      e.target.value = '';
+      for (const f of files) {
+        if (f.size > MAX_MB * 1048576) { setStatus('Un file supera ' + MAX_MB + ' MB ed è stato saltato.'); continue; }
+        f._tries = 0;
+        queue.push(f);
+        total++;
+      }
+      if (!busy) next();
+    });
+  });
+
+  function progress() { fill.style.width = (total ? (done + failed) / total * 100 : 0) + '%'; }
+
+  function next() {
+    if (!queue.length) {
+      busy = false;
+      bar.classList.add('hidden');
+      if (done || failed) {
+        let msg = done ? '✅ ' + done + (done === 1 ? ' foto caricata' : ' foto caricate') + '. Grazie!' : '';
+        if (failed) msg += (msg ? ' ' : '') + '⚠️ ' + failed + ' non caricate. Riprova tra poco.' + (lastError ? ' [Errore: ' + lastError + ']' : '');
+        setStatus(msg);
+      }
+      total = done = failed = 0;
+      return;
+    }
+    busy = true;
+    bar.classList.remove('hidden');
+    const f = queue.shift();
+    setStatus('Caricamento ' + (done + failed + 1) + ' di ' + total + '…');
+    progress();
+
+    const reader = new FileReader();
+    reader.onload = () => {
+      const b64 = String(reader.result).split(',')[1];
+      // Invio "anonimo": nessun cookie/account Google del browser viene usato,
+      // quindi il problema degli account multipli non può presentarsi.
+      fetch(ENDPOINT, {
+        method: 'POST',
+        credentials: 'omit',
+        body: JSON.stringify({ data: b64, name: f.name || 'foto.jpg', mimeType: f.type || 'image/jpeg', guest: guestEl.value })
+      })
+        .then(r => r.json())
+        .then(res => {
+          if (!res.ok) throw new Error(res.error || 'errore sconosciuto');
+          done++; sent++; store('sent', sent); showCount(); progress(); next();
+        })
+        .catch(err => {
+          f._tries++;
+          lastError = (err && err.message) ? err.message : String(err);
+          if (f._tries < 3) { queue.unshift(f); setTimeout(next, 1500); }
+          else { failed++; progress(); next(); }
+        });
+    };
+    reader.onerror = () => { failed++; progress(); next(); };
+    reader.readAsDataURL(f);
+  }
+</script>
+</body>
+</html>
