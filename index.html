@@ -60,6 +60,8 @@
   #toast { position:absolute; left:50%; top:14px; transform:translateX(-50%); background:rgba(0,0,0,.6);
            padding:7px 14px; border-radius:16px; font-size:14px; white-space:nowrap; opacity:0; transition:opacity .3s; pointer-events:none; }
   #toast.show { opacity:1; }
+  #screenFlash { position:fixed; inset:0; background:#fff; z-index:50; opacity:0; pointer-events:none; transition:opacity .15s; }
+  #screenFlash.on { opacity:1; transition:none; }
 
   #filters { display:flex; gap:8px; padding:14px 10px 4px; overflow-x:auto; scrollbar-width:none; }
   #filters::-webkit-scrollbar { display:none; }
@@ -111,6 +113,7 @@
 </section>
 
 <!-- FOTOCAMERA -->
+<div id="screenFlash"></div>
 <section id="cam" class="hidden">
   <div class="top">
     <button class="round" id="closeCam" aria-label="Chiudi">✕</button>
@@ -380,7 +383,8 @@
 
   // ---------- Fotocamera ----------
   const video = $('video');
-  let stream = null, facing = 'environment', torchOn = false;
+  let stream = null, facing = 'environment', flashOn = load('flash', '0') === '1', hasTorch = false, shooting = false;
+  const wait = ms => new Promise(r => setTimeout(r, ms));
 
   async function startStream() {
     if (stream) stream.getTracks().forEach(t => t.stop());
@@ -391,11 +395,11 @@
     video.srcObject = stream;
     video.classList.toggle('mirror', facing === 'user');
     await video.play();
-    // Flash continuo: solo se il telefono lo permette (molti Android sì, iPhone no)
-    torchOn = false; $('torch').classList.remove('on');
+    // Flash: torcia del telefono sulla fotocamera posteriore, schermo bianco su quella frontale
     const track = stream.getVideoTracks()[0];
     const caps = track.getCapabilities ? track.getCapabilities() : {};
-    $('torch').classList.toggle('hidden', !caps.torch);
+    hasTorch = !!caps.torch;
+    updateFlashBtn();
   }
 
   async function openCam() {
@@ -411,6 +415,17 @@
     }
   }
 
+  function updateFlashBtn() {
+    const available = hasTorch || facing === 'user';
+    $('torch').classList.toggle('hidden', !available);
+    $('torch').classList.toggle('on', available && flashOn);
+  }
+
+  async function setTorch(on) {
+    try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: on }] }); return true; }
+    catch (e) { return false; }
+  }
+
   function closeCam() {
     if (stream) stream.getTracks().forEach(t => t.stop());
     stream = null;
@@ -424,8 +439,15 @@
   }
 
   let processing = Promise.resolve();
-  function shoot() {
-    if (!video.videoWidth) return;
+  async function shoot() {
+    if (!video.videoWidth || shooting) return;
+    shooting = true;
+    const useFlash = flashOn && (hasTorch || facing === 'user');
+    let torchLit = false;
+    if (useFlash) {
+      if (facing === 'user') { $('screenFlash').classList.add('on'); await wait(220); }
+      else { torchLit = await setTorch(true); if (torchLit) await wait(450); }   // tempo per l'esposizione
+    }
     clickSound();
     const fl = $('flash'); fl.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => fl.classList.remove('on')));
 
@@ -436,6 +458,9 @@
     if (facing === 'user') { ctx.translate(w, 0); ctx.scale(-1, 1); }
     ctx.drawImage(video, 0, 0, w, h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
+    if (torchLit) setTorch(false);
+    $('screenFlash').classList.remove('on');
+    shooting = false;
     const f = filter, n = ++shots; store('shots', shots); updateStatus();
     toast('📸 Scattata · si carica da sola');
 
@@ -455,14 +480,12 @@
   $('shutter').addEventListener('click', shoot);
   $('flip').addEventListener('click', async () => {
     facing = facing === 'environment' ? 'user' : 'environment';
+    hasTorch = false; updateFlashBtn();
     try { await startStream(); } catch (e) { toast('Impossibile cambiare fotocamera'); }
   });
-  $('torch').addEventListener('click', async () => {
-    try {
-      torchOn = !torchOn;
-      await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: torchOn }] });
-      $('torch').classList.toggle('on', torchOn);
-    } catch (e) { toast('Flash non disponibile'); }
+  $('torch').addEventListener('click', () => {
+    flashOn = !flashOn; store('flash', flashOn ? '1' : '0'); updateFlashBtn();
+    toast(flashOn ? '⚡ Flash attivo' : 'Flash spento');
   });
 
   // ---------- Cornice ondulata ----------
@@ -497,5 +520,3 @@
 </script>
 </body>
 </html>
-
-
