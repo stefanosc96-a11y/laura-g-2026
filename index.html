@@ -3,14 +3,14 @@
 <head>
 <meta charset="utf-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, viewport-fit=cover">
-<meta name="theme-color" content="#faf6f0">
+<meta name="theme-color" content="#ffffff">
 <title>Festa di laurea 📸</title>
 <link rel="preconnect" href="https://fonts.googleapis.com">
 <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-<link href="https://fonts.googleapis.com/css2?family=VT323&display=swap" rel="stylesheet">
+<link href="https://fonts.googleapis.com/css2?family=VT323&family=Dawning+of+a+New+Day&display=swap" rel="stylesheet">
 <style>
-  :root { --bg:#faf6f0; --ink:#2b2420; --accent:#b5442b; --muted:#8a7d72; --card:#fff; --line:#ddd2c6;
-          --lcd:#ff9a2e; --body:#141210; }
+  :root { --bg:#ffffff; --ink:#3a0d16; --accent:#7b1e2b; --accent-soft:#f6e9eb; --muted:#8c5a63; --card:#fff; --line:#e6cfd3;
+          --lcd:#ff9a2e; }
   * { box-sizing:border-box; -webkit-tap-highlight-color:transparent; }
   html, body { margin:0; height:100%; }
   body { font-family:-apple-system,BlinkMacSystemFont,"Segoe UI",Roboto,sans-serif; background:var(--bg); color:var(--ink); }
@@ -19,31 +19,34 @@
 
   /* ---------- Home ---------- */
   #home { min-height:100%; display:flex; justify-content:center; }
-  #home main { width:100%; max-width:440px; padding:44px 20px 40px; text-align:center; }
+  #home main { width:100%; max-width:440px; padding:24px 16px 32px; text-align:center; }
   .icon { font-size:48px; }
-  h1 { font-family:Georgia,"Times New Roman",serif; font-weight:normal; font-size:32px; margin:6px 0; }
+  h1 { font-family:"Dawning of a New Day",cursive; font-weight:normal; color:var(--accent); font-size:46px; line-height:.9; margin:14px 0 26px; }
   .sub { color:var(--muted); margin:0 0 30px; font-size:15px; line-height:1.45; }
   .btn { display:block; width:100%; padding:19px; border:0; border-radius:14px; font-size:17px; font-weight:600;
          line-height:1; margin-bottom:12px; cursor:pointer; user-select:none; }
   .btn:active { transform:scale(.98); }
   .primary { background:var(--accent); color:#fff; }
-  .secondary { background:var(--card); color:var(--ink); border:1px solid var(--line); }
+  .secondary { background:var(--card); color:var(--accent); border:1.5px solid var(--accent); }
   .name { margin-top:22px; font-size:14px; color:var(--muted); }
   .name input { margin-top:8px; width:100%; padding:12px 14px; border:1px solid var(--line); border-radius:12px;
                 font-size:16px; background:var(--card); color:var(--ink); text-align:center; }
+  .frame { position:relative; padding:46px 30px 40px; }
+  .frame svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
+  .frame > *:not(svg) { position:relative; }
   #homeStatus { margin-top:22px; font-size:15px; min-height:22px; line-height:1.4; }
 
   /* ---------- Fotocamera ---------- */
-  #cam { position:fixed; inset:0; background:var(--body); color:#fff; z-index:10; display:flex; flex-direction:column; }
+  #cam { position:fixed; inset:0; background:#fff; color:var(--ink); z-index:10; display:flex; flex-direction:column; }
   .top { padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; display:flex; justify-content:space-between;
          align-items:center; gap:10px; }
-  .round { width:42px; height:42px; flex:0 0 42px; border-radius:50%; border:0; background:#2a2622; color:#fff;
+  .round { width:42px; height:42px; flex:0 0 42px; border-radius:50%; border:0; background:var(--accent-soft); color:var(--accent);
            font-size:18px; display:flex; align-items:center; justify-content:center; cursor:pointer; }
-  .round.on { background:var(--lcd); color:#000; }
-  #camStatus { font-size:13px; color:#cfc6bc; text-align:center; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
+  .round.on { background:var(--accent); color:#fff; }
+  #camStatus { font-size:13px; color:var(--muted); text-align:center; flex:1; white-space:nowrap; overflow:hidden; text-overflow:ellipsis; }
 
   #viewfinder { position:relative; flex:1; margin:0 10px; border-radius:18px; overflow:hidden; background:#000;
-                box-shadow:inset 0 0 0 2px #2a2622; }
+                box-shadow:0 0 0 2px var(--accent); }
   #video { position:absolute; inset:0; width:100%; height:100%; object-fit:cover; }
   #video.mirror { transform:scaleX(-1); }
   .ov { position:absolute; inset:0; pointer-events:none; }
@@ -61,21 +64,24 @@
   #filters { display:flex; gap:8px; padding:14px 10px 4px; overflow-x:auto; scrollbar-width:none; }
   #filters::-webkit-scrollbar { display:none; }
   .chip:first-child { margin-left:auto; } .chip:last-child { margin-right:auto; }
-  .chip { flex:0 0 auto; border:1px solid #3a342e; background:transparent; color:#cfc6bc; border-radius:16px;
-          padding:8px 12px; font-size:13px; cursor:pointer; }
-  .chip.sel { background:var(--lcd); border-color:var(--lcd); color:#000; font-weight:600; }
+  .chip { flex:0 0 auto; border:1.5px solid var(--accent); background:#fff; color:var(--accent); border-radius:16px;
+          padding:9px 20px; font-size:14px; cursor:pointer; }
+  .chip.sel { background:var(--accent); color:#fff; font-weight:600; }
 
   .bottom { padding:12px 28px calc(env(safe-area-inset-bottom) + 20px); display:flex; justify-content:space-between; align-items:center; }
-  #shutter { width:76px; height:76px; border-radius:50%; border:5px solid #e9e2da; background:var(--accent);
-             cursor:pointer; padding:0; box-shadow:0 0 0 3px #2a2622 inset; }
+  #shutter { width:76px; height:76px; border-radius:50%; border:4px solid var(--accent); background:var(--accent);
+             cursor:pointer; padding:0; box-shadow:0 0 0 4px #fff inset; }
   #shutter:active { transform:scale(.93); filter:brightness(1.2); }
-  #thumb { width:52px; height:52px; border-radius:10px; border:2px solid #e9e2da; background:#2a2622 center/cover; position:relative; cursor:pointer; }
+  #thumb { width:52px; height:52px; border-radius:10px; border:2px solid var(--accent); background:var(--accent-soft) center/cover; position:relative; cursor:pointer; }
   #badge { position:absolute; right:-8px; top:-8px; min-width:22px; height:22px; border-radius:11px; background:var(--accent);
-           font-size:12px; font-weight:700; display:flex; align-items:center; justify-content:center; padding:0 6px; }
-  #counter { width:52px; height:52px; border-radius:10px; background:#0b0a09; border:2px solid #2a2622;
+           font-size:12px; font-weight:700; color:#fff; display:flex; align-items:center; justify-content:center; padding:0 6px; }
+  #counter { width:52px; height:52px; border-radius:10px; background:var(--accent); border:2px solid var(--accent);
              display:flex; flex-direction:column; align-items:center; justify-content:center; line-height:.9; }
-  #counter b { font-family:"VT323",monospace; font-weight:normal; font-size:30px; color:var(--lcd); text-shadow:0 0 5px rgba(255,120,0,.7); }
-  #counter span { font-size:8px; color:#8a7d72; letter-spacing:1px; }
+  #counter b { font-family:"VT323",monospace; font-weight:normal; font-size:30px; color:#fff; }
+  .side { display:flex; flex-direction:column; align-items:center; gap:5px; }
+  .side small { font-size:11px; color:var(--muted); }
+  #galIcon { position:absolute; inset:0; display:flex; align-items:center; justify-content:center; font-size:22px; }
+  #thumb.has #galIcon { display:none; }
 </style>
 </head>
 <body>
@@ -83,9 +89,11 @@
 <!-- HOME -->
 <section id="home">
   <main>
+   <div class="frame" id="frame">
+    <svg id="frameSvg" aria-hidden="true"><path id="framePath" fill="#fff" stroke="var(--accent)" stroke-width="7" stroke-linejoin="round"/></svg>
     <div class="icon">📸</div>
-    <h1>Festa di laurea</h1>
-    <p class="sub">Scatta quante foto vuoi: arrivano tutte nell'album della festa.<br>Le vedremo insieme dopo!</p>
+    <h1>La tua macchina analogica</h1>
+    <p class="sub">Scatta quante foto vuoi: arrivano tutte nell'album della festa.</p>
 
     <button class="btn primary" id="openCam">Apri la fotocamera</button>
     <label class="btn secondary" for="gal">Carica dalla galleria</label>
@@ -98,6 +106,7 @@
     </div>
 
     <div id="homeStatus"></div>
+   </div>
   </main>
 </section>
 
@@ -122,9 +131,9 @@
   <div id="filters"></div>
 
   <div class="bottom">
-    <div id="thumb"><span id="badge" class="hidden"></span></div>
+    <div class="side"><div id="thumb"><span id="badge" class="hidden"></span><span id="galIcon">🖼️</span></div><small>Galleria</small></div>
     <button id="shutter" aria-label="Scatta"></button>
-    <div id="counter"><b id="shots">00</b><span>SCATTI</span></div>
+    <div class="side"><div id="counter"><b id="shots">00</b></div><small>Scatti</small></div>
   </div>
 </section>
 
@@ -135,19 +144,15 @@
   const QUALITY = 0.86;      // qualità JPEG
   const MAX_VIDEO_MB = 30;   // i video non vengono compressi
   const PARALLEL = 3;        // caricamenti contemporanei
-  const DEFAULT_FILTER = 'usaegetta';
+  const DEFAULT_FILTER = 'vintage';
   // ============================
 
   // ---------- Filtri ----------
   // curve: [nero, bianco, gamma] per canale R,G,B  ·  contrast: -1..1  ·  sat: saturazione
   const FILTERS = [
-    { id:'usaegetta', label:'Usa e getta', css:'sepia(.22) saturate(1.3) contrast(1.06) brightness(1.04) hue-rotate(-6deg)',
-      r:[16,255,.92], g:[10,246,.97], b:[22,222,1.06], contrast:.08, sat:1.12, grain:20, vignette:.42, leak:true, date:true },
-    { id:'anni70', label:"Anni '70", css:'sepia(.4) saturate(.85) contrast(.9) brightness(1.08)',
-      r:[34,248,.9], g:[26,236,.95], b:[44,206,1.0], contrast:-.1, sat:.78, grain:12, vignette:.32, leak:true, date:false },
-    { id:'bn', label:'Bianco e nero', css:'grayscale(1) contrast(1.25) brightness(1.03)',
-      r:[8,250,1], g:[8,250,1], b:[8,250,1], contrast:.22, sat:0, grain:24, vignette:.38, leak:false, date:false },
-    { id:'naturale', label:'Naturale', css:'none', none:true }
+    { id:'normale', label:'Normale', css:'none', none:true },
+    { id:'vintage', label:'Vintage', css:'sepia(.18) saturate(1.55) contrast(1.12) brightness(1.05) hue-rotate(-8deg)',
+      r:[14,255,.9], g:[6,248,.98], b:[18,228,1.06], contrast:.12, sat:1.35, grain:0, vignette:.3, leak:true, date:true }
   ];
 
   const $ = id => document.getElementById(id);
@@ -192,7 +197,7 @@
     while (active < PARALLEL && queue.length) {
       const item = queue.shift();
       active++;
-      send(item).then(() => { sent++; })
+      send(item).then(() => { sent++; if (!$('cam').classList.contains('hidden') && pending() <= 1) toast('✓ Inviata' + (sent > 1 ? ' · ' + sent + ' in totale' : '')); })
         .catch(err => {
           item.tries++;
           lastError = (err && err.message) ? err.message : String(err);
@@ -273,10 +278,10 @@
       v.addColorStop(1, 'rgba(0,0,0,' + f.vignette + ')');
       ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
     }
-    if (f.leak && Math.random() < 0.6) {          // bagliore di luce, non su tutte le foto
+    if (f.leak && Math.random() < 0.4) {          // bagliore di luce, non su tutte le foto
       const x = Math.random() < 0.5 ? 0 : w, y = Math.random() * h * 0.6;
       const g2 = ctx.createRadialGradient(x, y, 0, x, y, R * (0.5 + Math.random() * 0.4));
-      g2.addColorStop(0, 'rgba(255,120,40,.45)');
+      g2.addColorStop(0, 'rgba(255,120,40,.3)');
       g2.addColorStop(0.5, 'rgba(255,70,30,.15)');
       g2.addColorStop(1, 'rgba(255,60,0,0)');
       ctx.save(); ctx.globalCompositeOperation = 'screen'; ctx.fillStyle = g2; ctx.fillRect(0, 0, w, h); ctx.restore();
@@ -342,8 +347,8 @@
 
   function applyPreview() {
     $('video').style.filter = filter.css;
-    $('vig').style.opacity = filter.none ? 0 : 1;
-    $('grain').style.opacity = filter.none ? 0 : Math.min(.2, filter.grain / 110);
+    $('vig').style.opacity = filter.none ? 0 : .6;
+    $('grain').style.opacity = 0;
     $('dateStamp').textContent = dateText();
     $('dateStamp').classList.toggle('hidden', !filter.date);
   }
@@ -423,20 +428,21 @@
     ctx.drawImage(video, 0, 0, w, h);
     ctx.setTransform(1, 0, 0, 1, 0, 0);
     const f = filter, n = ++shots; store('shots', shots); updateStatus();
+    toast('📸 Scattata · si carica da sola');
 
     processing = processing.then(async () => {
       try { await document.fonts.load('40px "VT323"'); } catch (e) {}
       applyFilter(c, f);
       const blob = await canvasToJpeg(c);
       if (!blob) { toast('Scatto non riuscito, riprova'); return; }
-      $('thumb').style.backgroundImage = 'url(' + URL.createObjectURL(blob) + ')';
+      $('thumb').style.backgroundImage = 'url(' + URL.createObjectURL(blob) + ')'; $('thumb').classList.add('has');
       enqueue({ blob, name: 'scatto_' + hhmmss() + '_' + f.id + '.jpg' });
     });
   }
 
   $('openCam').addEventListener('click', openCam);
   $('closeCam').addEventListener('click', closeCam);
-  $('thumb').addEventListener('click', closeCam);
+  $('thumb').addEventListener('click', () => $('gal').click());
   $('shutter').addEventListener('click', shoot);
   $('flip').addEventListener('click', async () => {
     facing = facing === 'environment' ? 'user' : 'environment';
@@ -449,6 +455,34 @@
       $('torch').classList.toggle('on', torchOn);
     } catch (e) { toast('Flash non disponibile'); }
   });
+
+  // ---------- Cornice ondulata ----------
+  function drawFrame() {
+    const el = $('frame'), w = el.offsetWidth, h = el.offsetHeight;
+    const m = 6, amp = 9, wl = 64, r = 22, step = 3;
+    const pts = [];
+    function edge(x0, y0, x1, y1, nx, ny) {          // nx,ny = verso l'interno
+      const len = Math.hypot(x1 - x0, y1 - y0), n = Math.max(1, Math.round(len / wl));
+      const k = Math.ceil(len / step);
+      for (let i = 0; i <= k; i++) {
+        const t = i / k, d = amp * (1 - Math.cos(2 * Math.PI * n * t)) / 2;
+        pts.push([x0 + (x1 - x0) * t + nx * d, y0 + (y1 - y0) * t + ny * d]);
+      }
+    }
+    let p = '';
+    const L = m, T = m, Rr = w - m, B = h - m;
+    pts.length = 0; edge(L + r, T, Rr - r, T, 0, 1);  p += 'M' + pts.map(q => q.join(',')).join('L');
+    p += 'Q' + Rr + ',' + T + ' ' + Rr + ',' + (T + r);
+    pts.length = 0; edge(Rr, T + r, Rr, B - r, -1, 0); p += 'L' + pts.map(q => q.join(',')).join('L');
+    p += 'Q' + Rr + ',' + B + ' ' + (Rr - r) + ',' + B;
+    pts.length = 0; edge(Rr - r, B, L + r, B, 0, -1); p += 'L' + pts.map(q => q.join(',')).join('L');
+    p += 'Q' + L + ',' + B + ' ' + L + ',' + (B - r);
+    pts.length = 0; edge(L, B - r, L, T + r, 1, 0);  p += 'L' + pts.map(q => q.join(',')).join('L');
+    p += 'Q' + L + ',' + T + ' ' + (L + r) + ',' + T + 'Z';
+    $('framePath').setAttribute('d', p);
+  }
+  try { new ResizeObserver(drawFrame).observe($('frame')); } catch (e) { window.addEventListener('resize', drawFrame); }
+  drawFrame();
 
   updateStatus();
 </script>
