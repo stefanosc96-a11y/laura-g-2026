@@ -60,7 +60,7 @@
   #toast { position:absolute; left:50%; top:14px; transform:translateX(-50%); background:rgba(0,0,0,.6);
            padding:7px 14px; border-radius:16px; font-size:14px; white-space:nowrap; opacity:0; transition:opacity .3s; pointer-events:none; }
   #toast.show { opacity:1; }
-  #screenFlash { position:fixed; inset:0; background:#fff; z-index:50; opacity:0; pointer-events:none; transition:opacity .15s; }
+  #screenFlash { position:fixed; inset:0; background:#fff7ee; z-index:50; opacity:0; pointer-events:none; transition:opacity .15s; }
   #screenFlash.on { opacity:1; transition:none; }
 
   #filters { display:flex; gap:8px; padding:14px 10px 4px; overflow-x:auto; scrollbar-width:none; }
@@ -385,6 +385,14 @@
   const video = $('video');
   let stream = null, facing = 'environment', flashOn = load('flash', '0') === '1', hasTorch = false, shooting = false;
   const wait = ms => new Promise(r => setTimeout(r, ms));
+  // aspetta che la fotocamera produca n fotogrammi nuovi (così la foto è presa con la luce già accesa)
+  function freshFrames(n) {
+    return new Promise(res => {
+      if (!video.requestVideoFrameCallback) return setTimeout(res, 120 * n);
+      let k = 0; const step = () => (++k >= n ? res() : video.requestVideoFrameCallback(step));
+      video.requestVideoFrameCallback(step);
+    });
+  }
 
   async function startStream() {
     if (stream) stream.getTracks().forEach(t => t.stop());
@@ -445,8 +453,8 @@
     const useFlash = flashOn && (hasTorch || facing === 'user');
     let torchLit = false;
     if (useFlash) {
-      if (facing === 'user') { $('screenFlash').classList.add('on'); await wait(220); }
-      else { torchLit = await setTorch(true); if (torchLit) await wait(450); }   // tempo per l'esposizione
+      if (facing === 'user') { $('screenFlash').classList.add('on'); await wait(700); await freshFrames(3); }
+      else { torchLit = await setTorch(true); if (torchLit) { await wait(700); await freshFrames(3); } }   // tempo per l'esposizione
     }
     clickSound();
     const fl = $('flash'); fl.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => fl.classList.remove('on')));
