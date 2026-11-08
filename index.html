@@ -34,10 +34,16 @@
   .frame { position:relative; padding:46px 30px 40px; }
   .frame svg { position:absolute; inset:0; width:100%; height:100%; overflow:visible; pointer-events:none; }
   .frame > *:not(svg) { position:relative; }
+  #camHelp { margin-top:18px; padding:14px 16px; border:1.5px solid var(--accent); border-radius:14px; background:var(--accent-soft);
+             font-size:14px; line-height:1.45; text-align:left; color:var(--ink); }
+  #camHelp b { color:var(--accent); }
+  #camHelp .btn { margin:12px 0 0; padding:14px; font-size:15px; line-height:1.25; text-align:center; }
+  #camHelp code { font-size:11px; color:var(--muted); }
+  .closed { font-size:19px; line-height:1.5; color:var(--accent); font-weight:600; margin:10px 0 24px; }
   #homeStatus { margin-top:22px; font-size:15px; min-height:22px; line-height:1.4; }
 
   /* ---------- Fotocamera ---------- */
-  #cam { position:fixed; inset:0; background:#fff; color:var(--ink); z-index:10; display:flex; flex-direction:column; }
+  #cam { position:fixed; inset:0; height:100dvh; background:#fff; color:var(--ink); z-index:10; display:flex; flex-direction:column; }
   .top { padding:calc(env(safe-area-inset-top) + 10px) 14px 10px; display:flex; justify-content:space-between;
          align-items:center; gap:10px; }
   .round { width:42px; height:42px; flex:0 0 42px; border-radius:50%; border:0; background:var(--accent-soft); color:var(--accent);
@@ -95,18 +101,10 @@
     <svg id="frameSvg" aria-hidden="true"><path id="framePath" fill="#fff" stroke="var(--accent)" stroke-width="7" stroke-linejoin="round"/></svg>
     <div class="icon">📸</div>
     <h1>La tua macchina analogica</h1>
-    <p class="sub">Scatta quante foto vuoi: arrivano tutte nell'album della festa.</p>
+    <p class="sub">I caricamenti sono chiusi.</p>
 
-    <button class="btn primary" id="openCam">Apri la fotocamera</button>
-    <label class="btn secondary" for="gal">Carica dalla galleria</label>
-    <input class="hidden" type="file" id="gal" accept="image/*,video/*" multiple>
-    <input class="hidden" type="file" id="nativeCam" accept="image/*" capture="environment">
-
-    <div class="name">
-      Firma le tue foto (facoltativo)
-      <input type="text" id="guest" placeholder="Il tuo nome" maxlength="30" autocomplete="given-name">
-    </div>
-
+    <p class="closed">Il rullino è finito 🎞️<br>Grazie a tutti per le foto!</p>
+    <div id="camHelp" class="hidden"></div>
     <div id="homeStatus"></div>
    </div>
   </main>
@@ -141,361 +139,7 @@
 </section>
 
 <script>
-  // ====== CONFIGURAZIONE ======
-  const ENDPOINT = 'https://script.google.com/macros/s/AKfycbwVyoclhGCln1D1F1eE5To9iPLRSzWK1JO9i1w3Q2JxFsq6dXORlvXsWf0o88-BpscD5Q/exec';
-  const MAX_SIDE = 2560;     // lato lungo massimo delle foto inviate (px)
-  const QUALITY = 0.86;      // qualità JPEG
-  const MAX_VIDEO_MB = 30;   // i video non vengono compressi
-  const PARALLEL = 3;        // caricamenti contemporanei
-  const DEFAULT_FILTER = 'vintage';
-  // ============================
-
-  // ---------- Filtri ----------
-  // curve: [nero, bianco, gamma] per canale R,G,B  ·  contrast: -1..1  ·  sat: saturazione
-  const FILTERS = [
-    { id:'normale', label:'Normale', css:'none', none:true },
-    { id:'vintage', label:'Vintage', css:'sepia(.25) saturate(1.2) contrast(1.3) brightness(1.02) hue-rotate(-5deg)',
-      r:[18,255,.87], g:[14,252,1.0], b:[3,245,1.18], contrast:.3, sat:1.05, grain:16, vignette:.35,
-      leak:true, leakColor:[255,30,20], leakChance:.5, date:true, flash:true }
-  ];
-
   const $ = id => document.getElementById(id);
-  function load(k, d) { try { return localStorage.getItem(k) ?? d; } catch (e) { return d; } }
-  function store(k, v) { try { localStorage.setItem(k, v); } catch (e) {} }
-
-  const guestEl = $('guest');
-  guestEl.value = load('guest', '');
-  guestEl.addEventListener('input', () => store('guest', guestEl.value));
-
-  let filter = FILTERS.find(f => f.id === load('filter', DEFAULT_FILTER)) || FILTERS[0];
-  let shots = +load('shots', 0) || 0;
-
-  // ---------- Coda di caricamento in background ----------
-  const queue = [];
-  let active = 0, sent = 0, failed = 0, lastError = '';
-  const pending = () => queue.length + active;
-
-  function updateStatus() {
-    const p = pending();
-    let txt;
-    if (p) txt = '⏳ ' + p + ' in caricamento' + (sent ? ' · ✓ ' + sent : '');
-    else if (sent) txt = '✓ ' + sent + (sent === 1 ? ' foto inviata' : ' foto inviate');
-    else txt = 'Pronta';
-    if (failed && !p) txt += ' · ⚠️ ' + failed + ' non inviate';
-    $('camStatus').textContent = txt;
-
-    let home = '';
-    if (p) home = '⏳ Sto caricando ' + p + ' file… puoi continuare a scattare.';
-    else if (sent) home = '✅ ' + sent + (sent === 1 ? ' foto inviata' : ' foto inviate') + '. Grazie!';
-    if (failed && !p) home += ' ⚠️ ' + failed + ' non inviate: riprova più tardi.' + (lastError ? ' [' + lastError + ']' : '');
-    $('homeStatus').textContent = home;
-
-    const b = $('badge');
-    if (p) { b.textContent = p; b.classList.remove('hidden'); } else b.classList.add('hidden');
-    $('shots').textContent = String(shots).padStart(2, '0');
-  }
-
-  function enqueue(item) { item.tries = 0; queue.push(item); updateStatus(); pump(); }
-
-  function pump() {
-    while (active < PARALLEL && queue.length) {
-      const item = queue.shift();
-      active++;
-      send(item).then(() => { sent++; if (!$('cam').classList.contains('hidden') && pending() <= 1) toast('✓ Inviata' + (sent > 1 ? ' · ' + sent + ' in totale' : '')); })
-        .catch(err => {
-          item.tries++;
-          lastError = (err && err.message) ? err.message : String(err);
-          if (item.tries < 3) setTimeout(() => { queue.push(item); updateStatus(); pump(); }, 2000 * item.tries);
-          else failed++;
-        })
-        .finally(() => { active--; updateStatus(); pump(); });
-    }
-  }
-
-  function blobToBase64(blob) {
-    return new Promise((res, rej) => {
-      const r = new FileReader();
-      r.onload = () => res(String(r.result).split(',')[1]);
-      r.onerror = () => rej(new Error('lettura file non riuscita'));
-      r.readAsDataURL(blob);
-    });
-  }
-
-  async function send(item) {
-    const b64 = await blobToBase64(item.blob);
-    const r = await fetch(ENDPOINT, {
-      method: 'POST',
-      credentials: 'omit',
-      body: JSON.stringify({ data: b64, name: item.name, mimeType: item.blob.type || 'image/jpeg', guest: guestEl.value })
-    });
-    const res = await r.json();
-    if (!res.ok) throw new Error(res.error || 'errore sconosciuto');
-  }
-
-  window.addEventListener('beforeunload', e => { if (pending()) { e.preventDefault(); e.returnValue = ''; } });
-
-  // ---------- Utilità immagine ----------
-  const canvasToJpeg = c => new Promise(res => c.toBlob(res, 'image/jpeg', QUALITY));
-  function fit(w, h) { const s = Math.min(1, MAX_SIDE / Math.max(w, h)); return [Math.round(w * s), Math.round(h * s)]; }
-  const baseName = n => String(n || 'foto').replace(/\.[^.]+$/, '');
-  const hhmmss = () => new Date().toTimeString().slice(0, 8).replace(/:/g, '');
-  function dateText() {
-    const d = new Date();
-    return "'" + String(d.getFullYear()).slice(2) + ' ' + String(d.getMonth() + 1).padStart(2, '0') + ' ' + String(d.getDate()).padStart(2, '0');
-  }
-
-  function makeLUT([lo, hi, gamma], contrast) {
-    const t = new Uint8ClampedArray(256);
-    for (let i = 0; i < 256; i++) {
-      let x = Math.pow(i / 255, gamma);
-      x = 0.5 + (x - 0.5) * (1 + contrast);
-      x = Math.min(1, Math.max(0, x));
-      t[i] = lo + (hi - lo) * x;
-    }
-    return t;
-  }
-
-  // Applica il filtro scelto al canvas (colore, grana, vignettatura, luce, data)
-  function applyFilter(c, f) {
-    if (f.none) return;
-    const w = c.width, h = c.height, ctx = c.getContext('2d');
-    const img = ctx.getImageData(0, 0, w, h), d = img.data;
-    const lr = makeLUT(f.r, f.contrast), lg = makeLUT(f.g, f.contrast), lb = makeLUT(f.b, f.contrast);
-    const sat = f.sat, gr = f.grain;
-    for (let i = 0; i < d.length; i += 4) {
-      let r = d[i], g = d[i + 1], b = d[i + 2];
-      if (sat !== 1) {
-        const l = 0.299 * r + 0.587 * g + 0.114 * b;
-        r = l + (r - l) * sat; g = l + (g - l) * sat; b = l + (b - l) * sat;
-        r = r < 0 ? 0 : r > 255 ? 255 : r; g = g < 0 ? 0 : g > 255 ? 255 : g; b = b < 0 ? 0 : b > 255 ? 255 : b;
-      }
-      r = lr[r | 0]; g = lg[g | 0]; b = lb[b | 0];
-      if (gr) { const n = (Math.random() - 0.5) * gr; r += n; g += n; b += n; }
-      d[i] = r; d[i + 1] = g; d[i + 2] = b;
-    }
-    ctx.putImageData(img, 0, 0);
-
-    const R = Math.hypot(w, h) / 2;
-    if (f.flash) {
-      const fg = ctx.createRadialGradient(w / 2, h * 0.45, 0, w / 2, h * 0.45, R * 0.75);
-      fg.addColorStop(0, 'rgba(255,248,235,.10)'); fg.addColorStop(1, 'rgba(255,248,235,0)');
-      ctx.save(); ctx.globalCompositeOperation = 'soft-light'; ctx.fillStyle = fg; ctx.fillRect(0, 0, w, h); ctx.restore();
-    }
-    if (f.vignette) {
-      const v = ctx.createRadialGradient(w / 2, h / 2, R * 0.45, w / 2, h / 2, R);
-      v.addColorStop(0, 'rgba(0,0,0,0)');
-      v.addColorStop(1, 'rgba(0,0,0,' + f.vignette + ')');
-      ctx.fillStyle = v; ctx.fillRect(0, 0, w, h);
-    }
-    if (f.leak && Math.random() < (f.leakChance || 0.4)) {   // striscia di luce sul bordo, non su tutte le foto
-      const lc = (f.leakColor || [255,120,40]).join(',');
-      const right = Math.random() < 0.5, cy = h * (0.25 + Math.random() * 0.4);
-      const rx = w * (0.3 + Math.random() * 0.15), ry = h * (0.1 + Math.random() * 0.08);
-      ctx.save(); ctx.globalCompositeOperation = 'screen';
-      ctx.translate(right ? w : 0, cy); ctx.scale(1, ry / rx);            // ellisse sfumata (funziona anche su Safari)
-      const gx = ctx.createRadialGradient(0, 0, 0, 0, 0, rx);
-      gx.addColorStop(0, 'rgba(' + lc + ',.8)'); gx.addColorStop(.5, 'rgba(' + lc + ',.35)'); gx.addColorStop(1, 'rgba(' + lc + ',0)');
-      ctx.fillStyle = gx; ctx.fillRect(-rx, -rx, 2 * rx, 2 * rx);
-      ctx.restore();
-    }
-    if (f.date) {
-      const size = Math.round(Math.min(w, h) * 0.065);
-      ctx.save();
-      ctx.font = size + 'px "VT323", monospace';
-      ctx.textAlign = 'left'; ctx.textBaseline = 'bottom';
-      ctx.shadowColor = 'rgba(255,110,0,.9)'; ctx.shadowBlur = size * 0.35;
-      ctx.fillStyle = '#ff9a2e';
-      ctx.fillText(dateText(), size * 0.8, h - size * 0.6);
-      ctx.restore();
-    }
-  }
-
-  // ---------- Galleria (foto originali, solo ridimensionate) ----------
-  async function compressFile(file) {
-    const url = URL.createObjectURL(file);
-    try {
-      const img = new Image(); img.src = url; await img.decode();
-      const [w, h] = fit(img.naturalWidth, img.naturalHeight);
-      const c = document.createElement('canvas'); c.width = w; c.height = h;
-      c.getContext('2d').drawImage(img, 0, 0, w, h);
-      const blob = await canvasToJpeg(c);
-      return (!blob || blob.size >= file.size) ? file : blob;
-    } catch (e) { return file; } finally { URL.revokeObjectURL(url); }
-  }
-
-  async function handleFiles(files) {
-    for (const f of files) {
-      if (f.type.startsWith('video/')) {
-        if (f.size > MAX_VIDEO_MB * 1048576) { lastError = 'video oltre ' + MAX_VIDEO_MB + ' MB saltato'; failed++; updateStatus(); continue; }
-        enqueue({ blob: f, name: f.name || 'video.mp4' });
-      } else {
-        const blob = await compressFile(f);
-        enqueue({ blob, name: blob === f ? (f.name || 'foto.jpg') : baseName(f.name) + '.jpg' });
-      }
-    }
-  }
-  $('gal').addEventListener('change', e => { const fs = Array.from(e.target.files || []); e.target.value = ''; handleFiles(fs); });
-  $('nativeCam').addEventListener('change', e => { const fs = Array.from(e.target.files || []); e.target.value = ''; handleFiles(fs); });
-
-  // ---------- Anteprima filtri ----------
-  (function makeGrainTile() {
-    const c = document.createElement('canvas'); c.width = c.height = 160;
-    const ctx = c.getContext('2d'), im = ctx.createImageData(160, 160);
-    for (let i = 0; i < im.data.length; i += 4) { const v = Math.random() * 255; im.data[i] = im.data[i + 1] = im.data[i + 2] = v; im.data[i + 3] = 255; }
-    ctx.putImageData(im, 0, 0);
-    $('grain').style.backgroundImage = 'url(' + c.toDataURL() + ')';
-  })();
-
-  function renderChips() {
-    $('filters').innerHTML = '';
-    FILTERS.forEach(f => {
-      const b = document.createElement('button');
-      b.className = 'chip' + (f === filter ? ' sel' : '');
-      b.textContent = f.label;
-      b.onclick = () => { filter = f; store('filter', f.id); renderChips(); applyPreview(); };
-      $('filters').appendChild(b);
-    });
-  }
-
-  function applyPreview() {
-    $('video').style.filter = filter.css;
-    $('vig').style.opacity = filter.none ? 0 : .6;
-    $('grain').style.opacity = filter.none ? 0 : Math.min(.18, (filter.grain || 0) / 100);
-    $('dateStamp').textContent = dateText();
-    $('dateStamp').classList.toggle('hidden', !filter.date);
-  }
-
-  // ---------- Suono dello scatto ----------
-  let audio = null;
-  function initAudio() { try { audio = audio || new (window.AudioContext || window.webkitAudioContext)(); audio.resume(); } catch (e) {} }
-  function clickSound() {
-    if (!audio) return;
-    try {
-      const len = audio.sampleRate * 0.09, buf = audio.createBuffer(1, len, audio.sampleRate), ch = buf.getChannelData(0);
-      for (let i = 0; i < len; i++) {
-        const t = i / len;
-        ch[i] = (Math.random() * 2 - 1) * (t < 0.12 ? 1 : (t > 0.55 && t < 0.65 ? 0.7 : 0)) * (1 - t);
-      }
-      const src = audio.createBufferSource(), gain = audio.createGain();
-      gain.gain.value = 0.35; src.buffer = buf; src.connect(gain).connect(audio.destination); src.start();
-    } catch (e) {}
-  }
-
-  // ---------- Fotocamera ----------
-  const video = $('video');
-  let stream = null, facing = 'environment', flashOn = load('flash', '0') === '1', hasTorch = false, shooting = false;
-  const wait = ms => new Promise(r => setTimeout(r, ms));
-  // aspetta che la fotocamera produca n fotogrammi nuovi (così la foto è presa con la luce già accesa)
-  function freshFrames(n) {
-    return new Promise(res => {
-      if (!video.requestVideoFrameCallback) return setTimeout(res, 120 * n);
-      let k = 0; const step = () => (++k >= n ? res() : video.requestVideoFrameCallback(step));
-      video.requestVideoFrameCallback(step);
-    });
-  }
-
-  async function startStream() {
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    stream = await navigator.mediaDevices.getUserMedia({
-      audio: false,
-      video: { facingMode: { ideal: facing }, width: { ideal: 3840 }, height: { ideal: 2160 } }
-    });
-    video.srcObject = stream;
-    video.classList.toggle('mirror', facing === 'user');
-    await video.play();
-    // Flash: torcia del telefono sulla fotocamera posteriore, schermo bianco su quella frontale
-    const track = stream.getVideoTracks()[0];
-    const caps = track.getCapabilities ? track.getCapabilities() : {};
-    hasTorch = !!caps.torch;
-    updateFlashBtn();
-  }
-
-  async function openCam() {
-    initAudio();
-    if (!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia) { $('nativeCam').click(); return; }
-    $('cam').classList.remove('hidden');
-    renderChips(); applyPreview(); updateStatus();
-    try { await startStream(); }
-    catch (e) {
-      closeCam();
-      $('homeStatus').textContent = 'Fotocamera della pagina non disponibile: uso quella del telefono.';
-      $('nativeCam').click();
-    }
-  }
-
-  function updateFlashBtn() {
-    const available = hasTorch || facing === 'user';
-    $('torch').classList.toggle('hidden', !available);
-    $('torch').classList.toggle('on', available && flashOn);
-  }
-
-  async function setTorch(on) {
-    try { await stream.getVideoTracks()[0].applyConstraints({ advanced: [{ torch: on }] }); return true; }
-    catch (e) { return false; }
-  }
-
-  function closeCam() {
-    if (stream) stream.getTracks().forEach(t => t.stop());
-    stream = null;
-    $('cam').classList.add('hidden');
-    updateStatus();
-  }
-
-  function toast(t) {
-    const el = $('toast'); el.textContent = t; el.classList.add('show');
-    clearTimeout(toast._t); toast._t = setTimeout(() => el.classList.remove('show'), 1100);
-  }
-
-  let processing = Promise.resolve();
-  async function shoot() {
-    if (!video.videoWidth || shooting) return;
-    shooting = true;
-    const useFlash = flashOn && (hasTorch || facing === 'user');
-    let torchLit = false;
-    if (useFlash) {
-      if (facing === 'user') { $('screenFlash').classList.add('on'); await wait(700); await freshFrames(3); }
-      else { torchLit = await setTorch(true); if (torchLit) { await wait(700); await freshFrames(3); } }   // tempo per l'esposizione
-    }
-    clickSound();
-    const fl = $('flash'); fl.classList.add('on'); requestAnimationFrame(() => requestAnimationFrame(() => fl.classList.remove('on')));
-
-    // Cattura subito il fotogramma, poi elabora in coda (così si può scattare a raffica)
-    const [w, h] = fit(video.videoWidth, video.videoHeight);
-    const c = document.createElement('canvas'); c.width = w; c.height = h;
-    const ctx = c.getContext('2d');
-    if (facing === 'user') { ctx.translate(w, 0); ctx.scale(-1, 1); }
-    ctx.drawImage(video, 0, 0, w, h);
-    ctx.setTransform(1, 0, 0, 1, 0, 0);
-    if (torchLit) setTorch(false);
-    $('screenFlash').classList.remove('on');
-    shooting = false;
-    const f = filter, n = ++shots; store('shots', shots); updateStatus();
-    toast('📸 Scattata · si carica da sola');
-
-    processing = processing.then(async () => {
-      try { await document.fonts.load('40px "VT323"'); } catch (e) {}
-      applyFilter(c, f);
-      const blob = await canvasToJpeg(c);
-      if (!blob) { toast('Scatto non riuscito, riprova'); return; }
-      $('thumb').style.backgroundImage = 'url(' + URL.createObjectURL(blob) + ')'; $('thumb').classList.add('has');
-      enqueue({ blob, name: 'scatto_' + hhmmss() + '_' + f.id + '.jpg' });
-    });
-  }
-
-  $('openCam').addEventListener('click', openCam);
-  $('closeCam').addEventListener('click', closeCam);
-  $('thumb').addEventListener('click', () => $('gal').click());
-  $('shutter').addEventListener('click', shoot);
-  $('flip').addEventListener('click', async () => {
-    facing = facing === 'environment' ? 'user' : 'environment';
-    hasTorch = false; updateFlashBtn();
-    try { await startStream(); } catch (e) { toast('Impossibile cambiare fotocamera'); }
-  });
-  $('torch').addEventListener('click', () => {
-    flashOn = !flashOn; store('flash', flashOn ? '1' : '0'); updateFlashBtn();
-    toast(flashOn ? '⚡ Flash attivo' : 'Flash spento');
-  });
-
   // ---------- Cornice ondulata ----------
   function drawFrame() {
     const el = $('frame'), w = el.offsetWidth, h = el.offsetHeight;
@@ -524,7 +168,6 @@
   try { new ResizeObserver(drawFrame).observe($('frame')); } catch (e) { window.addEventListener('resize', drawFrame); }
   drawFrame();
 
-  updateStatus();
 </script>
 </body>
 </html>
